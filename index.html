@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="My Health">
+    <title>個人健康儀表板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #1c1c1e;
+            --text-main: #ffffff;
+            --text-sub: #8e8e93;
+            --accent-red: #ff3b30;    /* 活動 */
+            --accent-green: #34c759;  /* 運動 */
+            --accent-blue: #007aff;   /* 站立/睡眠 */
+            --accent-orange: #ff9500; /* 步數 */
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 20px;
+            padding-top: 50px; /* 避開瀏海 */
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        p.date-label {
+            color: var(--text-sub);
+            font-size: 14px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* 網格佈局 Bento Grid */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 18px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 100px;
+        }
+
+        .card.full-width {
+            grid-column: span 2;
+        }
+
+        .card-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            color: var(--text-sub);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .card-unit {
+            font-size: 14px;
+            color: var(--text-sub);
+            font-weight: 500;
+            margin-left: 2px;
+        }
+
+        /* 特定卡片樣式微調 */
+        .move-text { color: var(--accent-red); }
+        .exercise-text { color: var(--accent-green); }
+        .stand-text { color: var(--accent-blue); }
+
+        .loading {
+            text-align: center;
+            color: var(--text-sub);
+            margin-top: 50px;
+        }
+
+        /* 底部更新時間 */
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #333;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <h1>Health Overview</h1>
+        <p class="date-label" id="currentDate">LOADING...</p>
+
+        <div class="grid-container" id="dashboard" style="display:none;">
+            <div class="card full-width">
+                <div class="card-title">Activity Rings</div>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <div>
+                        <div class="card-value move-text" id="val_move">--</div>
+                        <div class="card-unit">KCAL</div>
+                    </div>
+                    <div>
+                        <div class="card-value exercise-text" id="val_exercise">--</div>
+                        <div class="card-unit">MIN</div>
+                    </div>
+                    <div>
+                        <div class="card-value stand-text" id="val_stand">--</div>
+                        <div class="card-unit">HRS</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">👣</div>
+                <div>
+                    <div class="card-title">Steps</div>
+                    <div class="card-value" id="val_steps">--</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">📏</div>
+                <div>
+                    <div class="card-title">Distance</div>
+                    <div class="card-value" id="val_dist">--<span class="card-unit">KM</span></div>
+                </div>
+            </div>
+
+            <div class="card full-width">
+                <div class="card-icon">🛌 Sleep Analysis</div>
+                <div style="display:flex; align-items:baseline;">
+                    <div class="card-value" id="val_sleep">--</div>
+                    <span class="card-unit">HRS</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">❤️ RHR</div>
+                <div>
+                    <div class="card-title">Resting HR</div>
+                    <div class="card-value" id="val_rhr">--<span class="card-unit">BPM</span></div>
+                </div>
+            </div>
+
+             <div class="card">
+                <div class="card-icon">💧 SpO2</div>
+                <div>
+                    <div class="card-title">Blood Oxygen</div>
+                    <div class="card-value" id="val_spo2">--<span class="card-unit">%</span></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-icon">⚡ Speed</div>
+                <div>
+                    <div class="card-title">Walk Speed</div>
+                    <div class="card-value" id="val_speed">--<span class="card-unit">km/h</span></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-icon">🧠 Mood</div>
+                <div>
+                    <div class="card-title">State of Mind</div>
+                    <div class="card-value" style="font-size: 20px;" id="val_mood">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">正在同步雲端數據...</div>
+        <div class="footer">Data sourced from Apple Health via Google Sheets</div>
+    </div>
+
+    <script>
+        // ★★★ 請將下方的網址換成你的 Google Sheet CSV 發布網址 ★★★
+        const SHEET_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vRt785wcLNCOLe_qDRzBphKaym23FAA9WLhRwE_2aYZSK9BwhlrRn2jB5JeGOatnvUEXWVGkYU0bpMt/pub?output=csv;
+
+        function init() {
+            Papa.parse(SHEET_CSV_URL, {
+                download: true,
+                header: true, // 假設第一行是標題
+                complete: function(results) {
+                    const data = results.data;
+                    console.log("Raw Data:", data);
+                    
+                    // 取得最後一筆資料 (假設最新的在最下面)
+                    // 如果有空行，需要過濾掉
+                    const validData = data.filter(row => row.Date);
+                    const todayData = validData[validData.length - 1];
+
+                    if (todayData) {
+                        renderDashboard(todayData);
+                    } else {
+                        document.getElementById('loading').innerText = "尚無資料，請先執行捷徑";
+                    }
+                },
+                error: function(err) {
+                    console.error("Error:", err);
+                    document.getElementById('loading').innerText = "讀取失敗，請檢查網址";
+                }
+            });
+        }
+
+        function renderDashboard(data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'grid';
+
+            // 更新日期
+            document.getElementById('currentDate').innerText = data.Date || 'UNKNOWN DATE';
+
+            // 更新數值 (根據 Google Sheet 的 Header 名稱)
+            // 請確保這裡的 key (例如 data.Steps) 與你 Excel 第一行完全一樣，大小寫需相符
+            updateVal('val_move', data.Move_Cal);
+            updateVal('val_exercise', data.Exercise_Min);
+            updateVal('val_stand', data.Stand_Hr);
+            updateVal('val_steps', data.Steps);
+            updateVal('val_dist', data.Distance);
+            updateVal('val_sleep', data.Sleep_Hr);
+            updateVal('val_rhr', data.RHR);
+            updateVal('val_spo2', data.SpO2);
+            updateVal('val_speed', data.Walking_Speed);
+            updateVal('val_mood', data.Mood);
+        }
+
+        function updateVal(elementId, value) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                // 如果數值是空的或 undefined，顯示 --
+                el.innerText = (value && value !== "") ? value : "--";
+            }
+        }
+
+        // 啟動
+        init();
+    </script>
+</body>
+</html>
