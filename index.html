@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="My Health">
-    <title>個人健康儀表板 (除錯模式)</title>
+    <meta name="apple-mobile-web-app-title" content="健康看板">
+    <title>個人健康儀表板</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         :root {
@@ -16,11 +15,11 @@
             --card-bg: #1c1c1e;
             --text-main: #ffffff;
             --text-sub: #8e8e93;
-            --accent-red: #ff3b30;
-            --accent-green: #34c759;
-            --accent-blue: #007aff;
-            --accent-orange: #ff9500;
-            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --accent-red: #ff3b30;    /* 活動 */
+            --accent-green: #34c759;  /* 運動 */
+            --accent-blue: #007aff;   /* 站立/睡眠 */
+            --accent-orange: #ff9500; /* 步數 */
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Heiti TC", "Microsoft JhengHei", sans-serif;
         }
 
         body {
@@ -31,6 +30,33 @@
             padding: 20px;
             padding-top: 50px;
             -webkit-font-smoothing: antialiased;
+        }
+
+        /* 導航切換按鈕 */
+        .nav-container {
+            display: flex;
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .nav-item {
+            flex: 1;
+            text-align: center;
+            padding: 8px 0;
+            font-size: 14px;
+            color: var(--text-sub);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .nav-item.active {
+            background-color: #636366; /* 選中時的灰色背景 */
+            color: var(--text-main);
+            font-weight: 700;
         }
 
         h1 {
@@ -77,7 +103,6 @@
             font-size: 13px;
             color: var(--text-sub);
             font-weight: 600;
-            text-transform: uppercase;
         }
 
         .card-value {
@@ -101,7 +126,7 @@
             text-align: center;
             color: var(--text-sub);
             margin-top: 50px;
-            line-height: 1.6; /* 增加行高讓錯誤訊息好讀 */
+            line-height: 1.6;
         }
 
         .footer {
@@ -110,29 +135,48 @@
             color: #333;
             font-size: 10px;
         }
+        
+        /* 標籤顯示 (總和/平均) */
+        .stat-type {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #3a3a3c;
+            color: #fff;
+            margin-left: 5px;
+            vertical-align: middle;
+            display: none; /* 預設隱藏，只有週/月顯示 */
+        }
     </style>
 </head>
 <body>
 
     <div id="app">
-        <h1>Health Overview</h1>
-        <p class="date-label" id="currentDate">LOADING...</p>
+        <h1>健康概覽</h1>
+        <p class="date-label" id="currentDate">讀取中...</p>
+
+        <div class="nav-container">
+            <div class="nav-item active" onclick="switchView('day')">今天</div>
+            <div class="nav-item" onclick="switchView('week')">本週 (7天)</div>
+            <div class="nav-item" onclick="switchView('month')">本月 (30天)</div>
+        </div>
 
         <div class="grid-container" id="dashboard" style="display:none;">
+            
             <div class="card full-width">
-                <div class="card-title">Activity Rings</div>
+                <div class="card-title">活動紀錄 <span id="badge_activity" class="stat-type">總和</span></div>
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                     <div>
                         <div class="card-value move-text" id="val_move">--</div>
-                        <div class="card-unit">KCAL</div>
+                        <div class="card-unit">千卡</div>
                     </div>
                     <div>
                         <div class="card-value exercise-text" id="val_exercise">--</div>
-                        <div class="card-unit">MIN</div>
+                        <div class="card-unit">分鐘</div>
                     </div>
                     <div>
                         <div class="card-value stand-text" id="val_stand">--</div>
-                        <div class="card-unit">HRS</div>
+                        <div class="card-unit">小時</div>
                     </div>
                 </div>
             </div>
@@ -140,7 +184,7 @@
             <div class="card">
                 <div class="card-icon">👣</div>
                 <div>
-                    <div class="card-title">Steps</div>
+                    <div class="card-title">步數 <span id="badge_steps" class="stat-type">總和</span></div>
                     <div class="card-value" id="val_steps">--</div>
                 </div>
             </div>
@@ -148,115 +192,163 @@
             <div class="card">
                 <div class="card-icon">📏</div>
                 <div>
-                    <div class="card-title">Distance</div>
-                    <div class="card-value" id="val_dist">--<span class="card-unit">KM</span></div>
+                    <div class="card-title">距離 <span id="badge_dist" class="stat-type">總和</span></div>
+                    <div class="card-value" id="val_dist">--<span class="card-unit">公里</span></div>
                 </div>
             </div>
 
             <div class="card full-width">
-                <div class="card-icon">🛌 Sleep Analysis</div>
+                <div class="card-icon">🛌 睡眠分析</div>
                 <div style="display:flex; align-items:baseline;">
                     <div class="card-value" id="val_sleep">--</div>
-                    <span class="card-unit">HRS</span>
+                    <span class="card-unit">小時 <span id="badge_sleep" class="stat-type">平均</span></span>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-icon">❤️ RHR</div>
+                <div class="card-icon">❤️ 靜止心率</div>
                 <div>
-                    <div class="card-title">Resting HR</div>
+                    <div class="card-title">RHR <span id="badge_rhr" class="stat-type">平均</span></div>
                     <div class="card-value" id="val_rhr">--<span class="card-unit">BPM</span></div>
                 </div>
             </div>
 
              <div class="card">
-                <div class="card-icon">💧 SpO2</div>
+                <div class="card-icon">💧 血氧濃度</div>
                 <div>
-                    <div class="card-title">Blood Oxygen</div>
+                    <div class="card-title">SpO2 <span id="badge_spo2" class="stat-type">平均</span></div>
                     <div class="card-value" id="val_spo2">--<span class="card-unit">%</span></div>
                 </div>
             </div>
             
             <div class="card">
-                <div class="card-icon">⚡ Speed</div>
+                <div class="card-icon">⚡ 步行速度</div>
                 <div>
-                    <div class="card-title">Walk Speed</div>
+                    <div class="card-title">速度 <span id="badge_speed" class="stat-type">平均</span></div>
                     <div class="card-value" id="val_speed">--<span class="card-unit">km/h</span></div>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-icon">🧠 Mood</div>
+                <div class="card-icon">🧠 心情</div>
                 <div>
-                    <div class="card-title">State of Mind</div>
+                    <div class="card-title">狀態</div>
                     <div class="card-value" style="font-size: 20px;" id="val_mood">--</div>
                 </div>
             </div>
         </div>
 
-        <div class="loading" id="loading">正在連線並診斷錯誤...</div>
+        <div class="loading" id="loading">正在連線至資料庫...</div>
         <div class="footer">Data sourced from Apple Health via Google Sheets</div>
     </div>
 
     <script>
-        // ★★★ 網址與設定 ★★★
+        // ★★★ 請將下方的網址換成你的 Google Sheet CSV 發布網址 ★★★
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzsERhjCfnFkITb8kpEsFqmMcO9mnwswn2GBCLfqiCZSe_RLHTLWVYWIVvI09Pvp4BiYr-VaPqTrdj/pub?gid=1612153779&single=true&output=csv';
+
+        let allData = []; // 儲存所有資料
+        let currentView = 'day'; // 當前模式: day, week, month
 
         function init() {
             Papa.parse(SHEET_CSV_URL, {
                 download: true,
                 header: true,
-                skipEmptyLines: true, // 自動跳過空行
+                skipEmptyLines: true,
                 complete: function(results) {
                     const data = results.data;
-                    console.log("原始數據:", data);
+                    // 過濾掉沒有日期的空行
+                    allData = data.filter(row => row.Date);
 
-                    // 1. 檢查是否有抓到任何資料
-                    if (!data || data.length === 0) {
-                        showError("資料庫是空的", "雖然連線成功，但CSV裡面沒有內容。請確認 Google Sheet 裡有資料。");
-                        return;
-                    }
-
-                    // 2. 檢查欄位名稱 (通關密語)
-                    const firstRow = data[0];
-                    if (!firstRow.hasOwnProperty('Date')) {
-                        const keys = Object.keys(firstRow).join(", ");
-                        showError("欄位名稱不符", "找不到 'Date' 欄位。<br>目前讀到的欄位是: " + keys + "<br>請去 Google Sheet 把標題改成英文。");
-                        return;
-                    }
-                    
-                    // 3. 過濾並顯示
-                    const validData = data.filter(row => row.Date);
-                    const todayData = validData[validData.length - 1];
-
-                    if (todayData) {
-                        renderDashboard(todayData);
+                    if (allData.length > 0) {
+                        switchView('day'); // 預設顯示今天
                     } else {
-                        showError("無有效日期資料", "讀取到了欄位，但找不到任何有填寫 Date 的資料行。");
+                        showError("無資料", "CSV 讀取成功但沒有內容。");
                     }
                 },
                 error: function(err, file, inputElem, reason) {
-                    // ★★★ 這裡會捕捉網路錯誤或權限錯誤 ★★★
                     console.error("Error:", err);
-                    showError("讀取失敗 (Network/Parse Error)", 
-                        "錯誤代碼: " + JSON.stringify(err) + 
-                        "<br>詳細原因: " + (reason || "Unknown"));
+                    showError("讀取失敗", "錯誤代碼: " + JSON.stringify(err) + "<br>原因: " + (reason || "Unknown"));
                 }
             });
         }
 
-        function showError(title, message) {
-            const el = document.getElementById('loading');
-            el.innerHTML = `<strong style="color: #ff3b30; font-size: 18px;">⚠️ ${title}</strong><br><span style="color: #ccc;">${message}</span>`;
-            el.style.textAlign = "left";
-            el.style.padding = "0 20px";
+        // 切換視圖邏輯
+        function switchView(view) {
+            currentView = view;
+            
+            // 更新按鈕樣式
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll(`.nav-item[onclick="switchView('${view}')"]`)[0].classList.add('active');
+
+            // 準備數據
+            let displayData = {};
+            
+            if (view === 'day') {
+                // 取最新一筆
+                displayData = allData[allData.length - 1];
+                updateBadgeDisplay('none');
+                document.getElementById('currentDate').innerText = displayData.Date;
+            } else {
+                // 計算統計數據
+                const days = (view === 'week') ? 7 : 30;
+                // 取最後 N 筆資料 (如果資料不足 N 筆，就取全部)
+                const sliceData = allData.slice(-days);
+                displayData = calculateStats(sliceData);
+                updateBadgeDisplay('inline-block');
+                document.getElementById('currentDate').innerText = `過去 ${sliceData.length} 天統計`;
+            }
+
+            renderDashboard(displayData);
+        }
+
+        // 計算總和與平均
+        function calculateStats(dataArray) {
+            let stats = {
+                Move_Cal: 0, Exercise_Min: 0, Stand_Hr: 0, Steps: 0, Distance: 0,
+                Sleep_Hr: 0, RHR: 0, SpO2: 0, Walking_Speed: 0, Mood: ''
+            };
+            
+            let count = dataArray.length;
+            let sleepCount = 0, rhrCount = 0, spo2Count = 0, speedCount = 0;
+
+            // 累加
+            dataArray.forEach(row => {
+                // 總和類
+                stats.Move_Cal += parseFloat(row.Move_Cal) || 0;
+                stats.Exercise_Min += parseFloat(row.Exercise_Min) || 0;
+                stats.Stand_Hr += parseFloat(row.Stand_Hr) || 0;
+                stats.Steps += parseFloat(row.Steps) || 0;
+                stats.Distance += parseFloat(row.Distance) || 0;
+
+                // 平均類 (先累加，要注意排除 0 或空值)
+                if(row.Sleep_Hr > 0) { stats.Sleep_Hr += parseFloat(row.Sleep_Hr); sleepCount++; }
+                if(row.RHR > 0) { stats.RHR += parseFloat(row.RHR); rhrCount++; }
+                if(row.SpO2 > 0) { stats.SpO2 += parseFloat(row.SpO2); spo2Count++; }
+                if(row.Walking_Speed > 0) { stats.Walking_Speed += parseFloat(row.Walking_Speed); speedCount++; }
+            });
+
+            // 計算平均
+            if(sleepCount > 0) stats.Sleep_Hr = (stats.Sleep_Hr / sleepCount).toFixed(1);
+            if(rhrCount > 0) stats.RHR = Math.round(stats.RHR / rhrCount);
+            if(spo2Count > 0) stats.SpO2 = (stats.SpO2 / spo2Count).toFixed(1); // 這裡改用 SpO2
+            if(speedCount > 0) stats.Walking_Speed = (stats.Walking_Speed / speedCount).toFixed(1);
+
+            // 總和類取整數或小數
+            stats.Distance = stats.Distance.toFixed(1);
+            
+            // 心情顯示最後一天的，或是空白
+            stats.Mood = dataArray[dataArray.length-1].Mood;
+
+            return stats;
+        }
+
+        function updateBadgeDisplay(displayStyle) {
+            document.querySelectorAll('.stat-type').forEach(el => el.style.display = displayStyle);
         }
 
         function renderDashboard(data) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('dashboard').style.display = 'grid';
-
-            document.getElementById('currentDate').innerText = data.Date || 'UNKNOWN DATE';
 
             updateVal('val_move', data.Move_Cal);
             updateVal('val_exercise', data.Exercise_Min);
@@ -265,7 +357,7 @@
             updateVal('val_dist', data.Distance);
             updateVal('val_sleep', data.Sleep_Hr);
             updateVal('val_rhr', data.RHR);
-            updateVal('val_spo2', data.SpO2);
+            updateVal('val_spo2', data.SpO2); // 修正變數名稱
             updateVal('val_speed', data.Walking_Speed);
             updateVal('val_mood', data.Mood);
         }
@@ -273,10 +365,16 @@
         function updateVal(elementId, value) {
             const el = document.getElementById(elementId);
             if (el) {
-                el.innerText = (value && value !== "") ? value : "--";
+                el.innerText = (value && value !== "" && value != 0) ? value : "--";
             }
         }
 
+        function showError(title, message) {
+            const el = document.getElementById('loading');
+            el.innerHTML = `<strong style="color: #ff3b30; font-size: 18px;">⚠️ ${title}</strong><br><span style="color: #ccc;">${message}</span>`;
+        }
+
+        window.switchView = switchView; // 確保全域可呼叫
         init();
     </script>
 </body>
