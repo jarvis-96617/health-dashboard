@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="My Health">
-    <title>個人健康儀表板</title>
+    <title>個人健康儀表板 (除錯模式)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
@@ -16,10 +16,10 @@
             --card-bg: #1c1c1e;
             --text-main: #ffffff;
             --text-sub: #8e8e93;
-            --accent-red: #ff3b30;    /* 活動 */
-            --accent-green: #34c759;  /* 運動 */
-            --accent-blue: #007aff;   /* 站立/睡眠 */
-            --accent-orange: #ff9500; /* 步數 */
+            --accent-red: #ff3b30;
+            --accent-green: #34c759;
+            --accent-blue: #007aff;
+            --accent-orange: #ff9500;
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
@@ -29,7 +29,7 @@
             font-family: var(--font-family);
             margin: 0;
             padding: 20px;
-            padding-top: 50px; /* 避開瀏海 */
+            padding-top: 50px;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -48,7 +48,6 @@
             letter-spacing: 1px;
         }
 
-        /* 網格佈局 Bento Grid */
         .grid-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -94,7 +93,6 @@
             margin-left: 2px;
         }
 
-        /* 特定卡片樣式微調 */
         .move-text { color: var(--accent-red); }
         .exercise-text { color: var(--accent-green); }
         .stand-text { color: var(--accent-blue); }
@@ -103,9 +101,9 @@
             text-align: center;
             color: var(--text-sub);
             margin-top: 50px;
+            line-height: 1.6; /* 增加行高讓錯誤訊息好讀 */
         }
 
-        /* 底部更新時間 */
         .footer {
             margin-top: 40px;
             text-align: center;
@@ -196,47 +194,70 @@
             </div>
         </div>
 
-        <div class="loading" id="loading">正在同步雲端數據...</div>
+        <div class="loading" id="loading">正在連線並診斷錯誤...</div>
         <div class="footer">Data sourced from Apple Health via Google Sheets</div>
     </div>
 
     <script>
-        // ★★★ 這裡已經是你提供的正確網址 ★★★
+        // ★★★ 網址與設定 ★★★
         const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzsERhjCfnFkITb8kpEsFqmMcO9mnwswn2GBCLfqiCZSe_RLHTLWVYWIVvI09Pvp4BiYr-VaPqTrdj/pub?gid=1612153779&single=true&output=csv';
 
         function init() {
             Papa.parse(SHEET_CSV_URL, {
                 download: true,
-                header: true, 
+                header: true,
+                skipEmptyLines: true, // 自動跳過空行
                 complete: function(results) {
                     const data = results.data;
-                    console.log("Raw Data:", data);
+                    console.log("原始數據:", data);
+
+                    // 1. 檢查是否有抓到任何資料
+                    if (!data || data.length === 0) {
+                        showError("資料庫是空的", "雖然連線成功，但CSV裡面沒有內容。請確認 Google Sheet 裡有資料。");
+                        return;
+                    }
+
+                    // 2. 檢查欄位名稱 (通關密語)
+                    const firstRow = data[0];
+                    if (!firstRow.hasOwnProperty('Date')) {
+                        const keys = Object.keys(firstRow).join(", ");
+                        showError("欄位名稱不符", "找不到 'Date' 欄位。<br>目前讀到的欄位是: " + keys + "<br>請去 Google Sheet 把標題改成英文。");
+                        return;
+                    }
                     
+                    // 3. 過濾並顯示
                     const validData = data.filter(row => row.Date);
-                    // 抓最後一筆 (最新的)
                     const todayData = validData[validData.length - 1];
 
                     if (todayData) {
                         renderDashboard(todayData);
                     } else {
-                        document.getElementById('loading').innerText = "尚無資料，請先執行捷徑";
+                        showError("無有效日期資料", "讀取到了欄位，但找不到任何有填寫 Date 的資料行。");
                     }
                 },
-                error: function(err) {
+                error: function(err, file, inputElem, reason) {
+                    // ★★★ 這裡會捕捉網路錯誤或權限錯誤 ★★★
                     console.error("Error:", err);
-                    document.getElementById('loading').innerText = "讀取失敗，請檢查網址";
+                    showError("讀取失敗 (Network/Parse Error)", 
+                        "錯誤代碼: " + JSON.stringify(err) + 
+                        "<br>詳細原因: " + (reason || "Unknown"));
                 }
             });
+        }
+
+        function showError(title, message) {
+            const el = document.getElementById('loading');
+            el.innerHTML = `<strong style="color: #ff3b30; font-size: 18px;">⚠️ ${title}</strong><br><span style="color: #ccc;">${message}</span>`;
+            el.style.textAlign = "left";
+            el.style.padding = "0 20px";
         }
 
         function renderDashboard(data) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('dashboard').style.display = 'grid';
 
-            // 更新日期
             document.getElementById('currentDate').innerText = data.Date || 'UNKNOWN DATE';
 
-            // 更新數值 (記得確認 Google Sheet 的標題列必須是英文)
             updateVal('val_move', data.Move_Cal);
             updateVal('val_exercise', data.Exercise_Min);
             updateVal('val_stand', data.Stand_Hr);
@@ -252,12 +273,10 @@
         function updateVal(elementId, value) {
             const el = document.getElementById(elementId);
             if (el) {
-                // 如果數值是空的或 undefined，顯示 --
                 el.innerText = (value && value !== "") ? value : "--";
             }
         }
 
-        // 啟動
         init();
     </script>
 </body>
