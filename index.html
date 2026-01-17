@@ -201,20 +201,19 @@
     </div>
 
     <script>
-        // ★★★ 請將下方的網址換成你的 Google Sheet CSV 發布網址 ★★★
-        const SHEET_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vQzsERhjCfnFkITb8kpEsFqmMcO9mnwswn2GBCLfqiCZSe_RLHTLWVYWIVvI09Pvp4BiYr-VaPqTrdj/pub?output=csv;
+        // ★★★ 修正點：我幫你加上了單引號 ' ' ★★★
+        const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQzsERhjCfnFkITb8kpEsFqmMcO9mnwswn2GBCLfqiCZSe_RLHTLWVYWIVvI09Pvp4BiYr-VaPqTrdj/pub?output=csv';
 
         function init() {
             Papa.parse(SHEET_CSV_URL, {
                 download: true,
-                header: true, // 假設第一行是標題
+                header: true, 
                 complete: function(results) {
                     const data = results.data;
                     console.log("Raw Data:", data);
                     
-                    // 取得最後一筆資料 (假設最新的在最下面)
-                    // 如果有空行，需要過濾掉
                     const validData = data.filter(row => row.Date);
+                    // 抓最後一筆 (最新的)
                     const todayData = validData[validData.length - 1];
 
                     if (todayData) {
@@ -237,8 +236,7 @@
             // 更新日期
             document.getElementById('currentDate').innerText = data.Date || 'UNKNOWN DATE';
 
-            // 更新數值 (根據 Google Sheet 的 Header 名稱)
-            // 請確保這裡的 key (例如 data.Steps) 與你 Excel 第一行完全一樣，大小寫需相符
+            // 更新數值 (記得確認 Google Sheet 的標題列必須是英文)
             updateVal('val_move', data.Move_Cal);
             updateVal('val_exercise', data.Exercise_Min);
             updateVal('val_stand', data.Stand_Hr);
